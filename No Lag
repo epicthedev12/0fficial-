@@ -1,0 +1,359 @@
+local LoadingScreen = {}
+LoadingScreen.__index = LoadingScreen
+
+function LoadingScreen.new(title, totalSteps)
+    local self = setmetatable({}, LoadingScreen)
+    self.title = title or "Loading..."
+    self.totalSteps = totalSteps or 100
+    self.currentStep = 0
+    self.messages = {}
+    self.isVisible = false
+    self.startTime = nil
+    self.animationFrame = 0
+    self.tipIndex = 1
+    self.lastTipChange = 0
+    self.sparklePositions = {}
+    
+    self.loadingTips = {
+        "💡 Tip: Did you know? This loading screen has over 20 different animations!",
+        "🎮 Tip: Take a moment to stretch while waiting - your body will thank you!",
+        "⚡ Tip: The fastest loading times happen when you're patient!",
+        "🌟 Tip: Each progress bar fill is like a small victory!",
+        "🎯 Tip: Loading screens are perfect for mini meditation sessions!",
+        "🔮 Tip: Something awesome is coming... just wait for it!",
+        "🚀 Tip: Good things take time to load properly!",
+        "🎨 Tip: This loading bar is hand-crafted with love and code!",
+        "⭐ Tip: You're about to experience something amazing!",
+        "🎪 Tip: Loading is just the anticipation before the fun begins!",
+    }
+    
+    self.spinnerFrames = {
+        "◐", "◓", "◑", "◒"
+    }
+    
+    self.progressStyles = {
+        {filled = "█", empty = "░", color = "blue"},
+        {filled = "▰", empty = "▱", color = "green"},
+        {filled = "●", empty = "○", color = "yellow"},
+        {filled = "♦", empty = "♢", color = "magenta"},
+        {filled = "▓", empty = "░", color = "cyan"},
+    }
+    
+    self.currentStyle = 1
+    self.styleChangeTime = 0
+    
+    return self
+end
+
+function LoadingScreen:show()
+    self.isVisible = true
+    self.startTime = os.clock()
+    self.lastTipChange = self.startTime
+    self.styleChangeTime = self.startTime
+    self:generateSparkles()
+    self:render()
+end
+
+function LoadingScreen:hide()
+    self.isVisible = false
+    self:clearScreen()
+    self:showCompletionAnimation()
+end
+
+function LoadingScreen:clearScreen()
+    os.execute("clear || cls")
+end
+
+function LoadingScreen:generateSparkles()
+    self.sparklePositions = {}
+    for i = 1, 8 do
+        table.insert(self.sparklePositions, {
+            x = math.random(5, 55),
+            y = math.random(2, 15),
+            char = ({"✦", "✧", "⋆", "∘", "·"})[math.random(1, 5)]
+        })
+    end
+end
+
+function LoadingScreen:updateProgress(step, message)
+    if step then
+        self.currentStep = step
+    else
+        self.currentStep = self.currentStep + 1
+    end
+    
+    if message then
+        table.insert(self.messages, "📦 " .. message)
+        if #self.messages > 2 then
+            table.remove(self.messages, 1)
+        end
+    end
+    
+    self.animationFrame = self.animationFrame + 1
+    
+    local currentTime = os.clock()
+    if currentTime - self.styleChangeTime > 10 then
+        self.currentStyle = (self.currentStyle % #self.progressStyles) + 1
+        self.styleChangeTime = currentTime
+        self:generateSparkles()
+    end
+    
+    if currentTime - self.lastTipChange > 5 then
+        self.tipIndex = (self.tipIndex % #self.loadingTips) + 1
+        self.lastTipChange = currentTime
+    end
+    
+    if self.isVisible then
+        self:render()
+    end
+end
+
+function LoadingScreen:createProgressBar()
+    local progress = math.min(self.currentStep / self.totalSteps, 1.0)
+    local barWidth = 40
+    local filledWidth = math.floor(progress * barWidth)
+    local style = self.progressStyles[self.currentStyle]
+    
+    local progressBar = "["
+    
+    for i = 1, barWidth do
+        if i <= filledWidth then
+            if self.animationFrame % 8 == i % 8 then
+                progressBar = progressBar .. "▓"
+            else
+                progressBar = progressBar .. style.filled
+            end
+        else
+            progressBar = progressBar .. style.empty
+        end
+    end
+    progressBar = progressBar .. "]"
+    
+    return progressBar
+end
+
+function LoadingScreen:createDancingTitle()
+    local chars = {}
+    for i = 1, #self.title do
+        chars[i] = self.title:sub(i, i)
+    end
+    
+    local dancingTitle = ""
+    for i, char in ipairs(chars) do
+        if (self.animationFrame + i) % 6 < 3 then
+            dancingTitle = dancingTitle .. char:upper()
+        else
+            dancingTitle = dancingTitle .. char:lower()
+        end
+    end
+    
+    return dancingTitle
+end
+
+function LoadingScreen:render()
+    self:clearScreen()
+    
+    local progress = math.min(self.currentStep / self.totalSteps, 1.0)
+    local percentage = math.floor(progress * 100)
+    
+    local progressBar = self:createProgressBar()
+    local spinner = self.spinnerFrames[(self.animationFrame % 4) + 1]
+    local dancingTitle = self:createDancingTitle()
+    
+    local elapsed = self.startTime and (os.clock() - self.startTime) or 0
+    local elapsedStr = string.format("%.1fs", elapsed)
+    
+    local remaining = ""
+    if progress > 0.05 then
+        local totalEstimate = elapsed / progress
+        local remainingTime = math.max(0, totalEstimate - elapsed)
+        remaining = string.format(" | ETA: %.1fs", remainingTime)
+    end
+    
+    local topBorder = "╔" .. string.rep("═", 58) .. "╗"
+    print("\n" .. topBorder)
+    
+    print("║  " .. spinner .. " " .. dancingTitle .. string.rep(" ", 50 - #self.title) .. " ║")
+    print("╠" .. string.rep("═", 58) .. "╣")
+    
+    for _, sparkle in ipairs(self.sparklePositions) do
+        if sparkle.y == 5 then
+            local line = "║ "
+            for x = 1, 56 do
+                if x == sparkle.x then
+                    line = line .. sparkle.char
+                else
+                    line = line .. " "
+                end
+            end
+            line = line .. " ║"
+            print(line)
+        end
+    end
+    
+    print("║                                                          ║")
+    print("║  " .. progressBar .. " " .. percentage .. "%" .. string.rep(" ", 6 - #tostring(percentage)) .. "║")
+    
+    local progressIndicator = "  🔥 Level " .. math.floor(progress * 10) .. " Energy"
+    if progress >= 1.0 then
+        progressIndicator = "  🎉 MAXIMUM POWER ACHIEVED! 🎉"
+    end
+    print("║" .. progressIndicator .. string.rep(" ", 58 - #progressIndicator) .. "║")
+    
+    print("║                                                          ║")
+    
+    local stepInfo = "  📊 Step " .. self.currentStep .. " of " .. self.totalSteps .. " | ⏱️ " .. elapsedStr .. remaining
+    print("║" .. stepInfo .. string.rep(" ", 58 - #stepInfo) .. "║")
+    
+    print("║                                                          ║")
+    
+    if #self.messages > 0 then
+        for i = 1, #self.messages do
+            local msg = "  " .. self.messages[i]
+            if #msg > 56 then
+                msg = msg:sub(1, 53) .. "..."
+            end
+            print("║" .. msg .. string.rep(" ", 58 - #msg) .. "║")
+        end
+    else
+        print("║  🔄 Processing...                                       ║")
+    end
+    
+    print("║                                                          ║")
+    
+    local tip = self.loadingTips[self.tipIndex]
+    if #tip > 54 then
+        local line1 = tip:sub(1, 54)
+        local line2 = "    " .. tip:sub(55)
+        print("║  " .. line1 .. string.rep(" ", 56 - #line1) .. "║")
+        if #line2 > 4 then
+            print("║" .. line2 .. string.rep(" ", 58 - #line2) .. "║")
+        end
+    else
+        print("║  " .. tip .. string.rep(" ", 56 - #tip) .. "║")
+    end
+    
+    print("║                                                          ║")
+    print("╚" .. string.rep("═", 58) .. "╝")
+    
+    local footerMessages = {
+        "🎮 Press CTRL+C to cancel (but why would you?)",
+        "⚡ Loading at warp speed...",
+        "🚀 Preparing for takeoff...",
+        "🌟 Magic is happening...",
+        "🎯 Almost there, champion!",
+    }
+    
+    local footerMsg = footerMessages[(self.animationFrame % #footerMessages) + 1]
+    print("    " .. footerMsg)
+    
+    self:sleep(0.15)
+end
+
+function LoadingScreen:sleep(seconds)
+    if package.config:sub(1,1) == '\\' then
+        os.execute("timeout /t " .. seconds .. " >nul")
+    else
+        os.execute("sleep " .. seconds)
+    end
+end
+
+function LoadingScreen:showCompletionAnimation()
+    local completionFrames = {
+        "🎉 LOADING COMPLETE! 🎉",
+        "✨ SUCCESS ACHIEVED! ✨",
+        "🚀 READY FOR LAUNCH! 🚀",
+        "🌟 LET'S GO! 🌟"
+    }
+    
+    for i, frame in ipairs(completionFrames) do
+        self:clearScreen()
+        print("\n\n")
+        print("  ╔" .. string.rep("═", #frame + 2) .. "╗")
+        print("  ║ " .. frame .. " ║")
+        print("  ╚" .. string.rep("═", #frame + 2) .. "╝")
+        self:sleep(0.5)
+    end
+    
+    self:clearScreen()
+    print("\n🎮 Welcome! Your adventure begins now... 🎮\n")
+end
+
+function LoadingScreen:simulateGameLoading()
+    local gameTasks = {
+        "Initializing game engine",
+        "Loading world terrain",
+        "Spawning NPCs and creatures",
+        "Loading player data",
+        "Generating random encounters",
+        "Loading sound effects",
+        "Preparing epic quests",
+        "Loading awesome graphics",
+        "Configuring multiplayer",
+        "Final optimizations"
+    }
+    
+    self:show()
+    
+    for i, task in ipairs(gameTasks) do
+        local progress = math.floor((i / #gameTasks) * self.totalSteps)
+        self:updateProgress(progress, task)
+        
+        local delay = math.random(100, 300) / 100
+        self:sleep(delay)
+    end
+    
+    self:updateProgress(self.totalSteps, "Ready to play!")
+    self:sleep(1)
+    self:hide()
+end
+
+local function runExample()
+    print("🎮 Enhanced Loading Screen Demo 🎮")
+    print("Choose your experience:")
+    print("1. Quick demo (10 seconds)")
+    print("2. Full game loading simulation")
+    print("3. Custom interactive demo")
+    io.write("Enter choice (1-3): ")
+    
+    local choice = io.read() or "1"
+    
+    if choice == "1" then
+        local loader = LoadingScreen.new("🎯 Quick Demo", 50)
+        loader:show()
+        
+        for i = 1, 50 do
+            loader:updateProgress(nil, "Demo step " .. i)
+            loader:sleep(0.1)
+        end
+        loader:hide()
+        
+    elseif choice == "2" then
+        local loader = LoadingScreen.new("🎮 Epic Game Loading", 100)
+        loader:simulateGameLoading()
+        
+    elseif choice == "3" then
+        local loader = LoadingScreen.new("🌟 Your Custom Adventure", 8)
+        loader:show()
+        
+        local customTasks = {
+            "Brewing coffee for developers",
+            "Teaching AI to be funny",
+            "Optimizing quantum flux",
+            "Loading cat videos",
+            "Calculating meaning of life",
+            "Preparing epic soundtrack",
+            "Generating procedural fun",
+            "Activating awesome mode"
+        }
+        
+        for i, task in ipairs(customTasks) do
+            loader:updateProgress(i, task)
+            loader:sleep(math.random(80, 150) / 100)
+        end
+        
+        loader:hide()
+    end
+end
+
+return LoadingScreen
