@@ -1,0 +1,244 @@
+local LoadingScreen = {}
+LoadingScreen.__index = LoadingScreen
+
+function LoadingScreen.new(title, totalSteps)
+    local self = setmetatable({}, LoadingScreen)
+    self.title = title or "Loading..."
+    self.totalSteps = totalSteps or 100
+    self.currentStep = 0
+    self.messages = {}
+    self.isVisible = false
+    self.startTime = nil
+    self.animationFrame = 0
+    self.tipIndex = 1
+    self.lastTipChange = 0
+    
+    self.loadingTips = {
+        "💡 Tip: This loading screen has animations!",
+        "🎮 Tip: Take a moment to stretch!",
+        "⚡ Tip: Patience makes loading faster!",
+        "🌟 Tip: Each progress fill is a victory!",
+        "🎯 Tip: Perfect time for mini meditation!",
+        "🔮 Tip: Something awesome is coming!",
+        "🚀 Tip: Good things take time!",
+        "⭐ Tip: Amazing experience loading..."
+    }
+    
+    self.spinnerFrames = {"◐", "◓", "◑", "◒"}
+    self.progressStyles = {
+        {filled = "█", empty = "░"},
+        {filled = "▰", empty = "▱"},
+        {filled = "●", empty = "○"},
+        {filled = "♦", empty = "♢"}
+    }
+    self.currentStyle = 1
+    self.styleChangeTime = 0
+    
+    return self
+end
+
+function LoadingScreen:show()
+    self.isVisible = true
+    self.startTime = os.clock()
+    self.lastTipChange = self.startTime
+    self.styleChangeTime = self.startTime
+    self:render()
+end
+
+function LoadingScreen:hide()
+    self.isVisible = false
+    self:clearScreen()
+    self:showCompletionAnimation()
+end
+
+function LoadingScreen:clearScreen()
+    os.execute("clear || cls")
+end
+
+function LoadingScreen:updateProgress(step, message)
+    if step then
+        self.currentStep = step
+    else
+        self.currentStep = self.currentStep + 1
+    end
+    
+    if message then
+        table.insert(self.messages, "📦 " .. message)
+        if #self.messages > 2 then
+            table.remove(self.messages, 1)
+        end
+    end
+    
+    self.animationFrame = self.animationFrame + 1
+    
+    local currentTime = os.clock()
+    if currentTime - self.styleChangeTime > 8 then
+        self.currentStyle = (self.currentStyle % #self.progressStyles) + 1
+        self.styleChangeTime = currentTime
+    end
+    
+    if currentTime - self.lastTipChange > 4 then
+        self.tipIndex = (self.tipIndex % #self.loadingTips) + 1
+        self.lastTipChange = currentTime
+    end
+    
+    if self.isVisible then
+        self:render()
+    end
+end
+
+function LoadingScreen:createProgressBar()
+    local progress = math.min(self.currentStep / self.totalSteps, 1.0)
+    local barWidth = 30
+    local filledWidth = math.floor(progress * barWidth)
+    local style = self.progressStyles[self.currentStyle]
+    
+    local progressBar = "["
+    for i = 1, barWidth do
+        if i <= filledWidth then
+            if self.animationFrame % 6 == i % 6 then
+                progressBar = progressBar .. "▓"
+            else
+                progressBar = progressBar .. style.filled
+            end
+        else
+            progressBar = progressBar .. style.empty
+        end
+    end
+    progressBar = progressBar .. "]"
+    
+    return progressBar
+end
+
+function LoadingScreen:createDancingTitle()
+    local dancingTitle = ""
+    for i = 1, #self.title do
+        local char = self.title:sub(i, i)
+        if (self.animationFrame + i) % 4 < 2 then
+            dancingTitle = dancingTitle .. char:upper()
+        else
+            dancingTitle = dancingTitle .. char:lower()
+        end
+    end
+    return dancingTitle
+end
+
+function LoadingScreen:render()
+    self:clearScreen()
+    
+    local progress = math.min(self.currentStep / self.totalSteps, 1.0)
+    local percentage = math.floor(progress * 100)
+    local progressBar = self:createProgressBar()
+    local spinner = self.spinnerFrames[(self.animationFrame % 4) + 1]
+    local dancingTitle = self:createDancingTitle()
+    
+    local elapsed = self.startTime and (os.clock() - self.startTime) or 0
+    local elapsedStr = string.format("%.1fs", elapsed)
+    
+    local remaining = ""
+    if progress > 0.05 then
+        local totalEstimate = elapsed / progress
+        local remainingTime = math.max(0, totalEstimate - elapsed)
+        remaining = string.format(" | ETA: %.1fs", remainingTime)
+    end
+    
+    print("\n╔════════════════════════════════════════╗")
+    print("║ " .. spinner .. " " .. dancingTitle .. string.rep(" ", 34 - #self.title) .. " ║")
+    print("╠════════════════════════════════════════╣")
+    print("║                                        ║")
+    print("║ " .. progressBar .. " " .. percentage .. "%" .. string.rep(" ", 4 - #tostring(percentage)) .. " ║")
+    
+    local energyLevel = "🔥 Level " .. math.floor(progress * 10) .. " Energy"
+    if progress >= 1.0 then
+        energyLevel = "🎉 MAXIMUM POWER! 🎉"
+    end
+    print("║ " .. energyLevel .. string.rep(" ", 37 - #energyLevel) .. " ║")
+    
+    print("║                                        ║")
+    
+    local stepInfo = "📊 " .. self.currentStep .. "/" .. self.totalSteps .. " | ⏱️ " .. elapsedStr .. remaining
+    if #stepInfo > 36 then stepInfo = stepInfo:sub(1, 33) .. "..." end
+    print("║ " .. stepInfo .. string.rep(" ", 37 - #stepInfo) .. " ║")
+    
+    print("║                                        ║")
+    
+    if #self.messages > 0 then
+        for i = 1, #self.messages do
+            local msg = self.messages[i]
+            if #msg > 36 then msg = msg:sub(1, 33) .. "..." end
+            print("║ " .. msg .. string.rep(" ", 37 - #msg) .. " ║")
+        end
+    else
+        print("║ 🔄 Processing...                      ║")
+    end
+    
+    print("║                                        ║")
+    
+    local tip = self.loadingTips[self.tipIndex]
+    if #tip > 36 then tip = tip:sub(1, 33) .. "..." end
+    print("║ " .. tip .. string.rep(" ", 37 - #tip) .. " ║")
+    
+    print("║                                        ║")
+    print("╚════════════════════════════════════════╝")
+    
+    local footerMessages = {
+        "🎮 Press CTRL+C to cancel",
+        "⚡ Loading at warp speed...",
+        "🚀 Preparing for takeoff...",
+        "🌟 Magic is happening...",
+        "🎯 Almost there, champion!"
+    }
+    
+    local footerMsg = footerMessages[(self.animationFrame % #footerMessages) + 1]
+    print("   " .. footerMsg)
+    
+    self:sleep(0.15)
+end
+
+function LoadingScreen:sleep(seconds)
+    if package.config:sub(1,1) == '\\' then
+        os.execute("timeout /t " .. seconds .. " >nul")
+    else
+        os.execute("sleep " .. seconds)
+    end
+end
+
+function LoadingScreen:showCompletionAnimation()
+    local frames = {"🎉 COMPLETE! 🎉", "✨ SUCCESS! ✨", "🚀 READY! 🚀"}
+    
+    for i, frame in ipairs(frames) do
+        self:clearScreen()
+        print("\n\n  ╔" .. string.rep("═", #frame + 2) .. "╗")
+        print("  ║ " .. frame .. " ║")
+        print("  ╚" .. string.rep("═", #frame + 2) .. "╝")
+        self:sleep(0.4)
+    end
+    
+    self:clearScreen()
+    print("\n🎮 Welcome! Let's go! 🎮\n")
+end
+
+function LoadingScreen:simulateLoading()
+    local tasks = {
+        "Initializing engine",
+        "Loading world",
+        "Spawning entities",
+        "Loading player data",
+        "Preparing graphics",
+        "Final setup"
+    }
+    
+    self:show()
+    
+    for i, task in ipairs(tasks) do
+        local progress = math.floor((i / #tasks) * self.totalSteps)
+        self:updateProgress(progress, task)
+        self:sleep(math.random(80, 200) / 100)
+    end
+    
+    self:updateProgress(self.totalSteps, "Ready!")
+    self:sleep(1)
+    self:hide()
+end
+
+return LoadingScreen
